@@ -1252,6 +1252,10 @@ BUILTIN(__builtin___get_unsafe_stack_ptr, "v*", "Fn")
 BUILTIN(__builtin_nontemporal_store, "v.", "t")
 BUILTIN(__builtin_nontemporal_load, "v.", "t")
 
+// Constant-time choose builtin
+// R = __builtin_ct_choose(const bool, const R true, const R false)
+BUILTIN(__builtin_ct_choose, "WibCWiCWiC", "tn")
+
 #undef BUILTIN
 #undef LIBBUILTIN
 #undef LANGBUILTIN

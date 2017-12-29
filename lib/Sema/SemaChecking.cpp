@@ -236,6 +236,100 @@ static bool SemaBuiltinCallWithStaticChain(Sema &S, CallExpr *BuiltinCall) {
   return false;
 }
 
+static bool SemaBuiltinConstantTimeChoose(Sema &S, ASTContext &Context, FunctionDecl *FDecl, CallExpr *Call) {
+  if (checkArgCount(S, Call, 3))
+    return true;
+  Expr *CondArg = Call->getArg(0);
+  QualType CondTy = CondArg->getType();
+
+  // Note: isIntegerType() returns true for a Boolean
+  // if condition is an integer, create a boolean from it, using c!=0 as true condition
+  if ( CondTy->isIntegerType() && !CondTy->isBooleanType()) {
+    IntegerLiteral *Zero = IntegerLiteral::Create(Context, llvm::APInt(Context.getTypeSize(Context.IntTy), 0), Context.IntTy, SourceLocation()); assert (Zero);
+    BinaryOperator * BOP = new (Context) BinaryOperator(CondArg,
+                                Zero,
+                                BO_NE,
+                                Context.getLogicalOperationType(),
+                                VK_RValue,
+                                OK_Ordinary, SourceLocation(), false); assert (BOP);
+   CondArg = BOP;
+   Call->setArg(0, CondArg);
+   CondArg->setType(Context.BoolTy); 
+   CondTy = CondArg->getType();
+  }
+
+  // if the condition is not a boolean, show error
+  if ( ! CondTy->isBooleanType() ) {
+    S.Diag(CondArg->getLocStart(),diag::err_typecheck_bool_condition) << CondTy << CondArg->getSourceRange();
+    return true;
+  }
+
+  // Second argument should be an integer
+  Expr *TrueArg = Call->getArg(1);
+  QualType TrueTy = TrueArg->getType();
+  if (!TrueTy->isIntegerType()) {
+    S.Diag(TrueArg->getLocStart(), diag::err_typecheck_expect_int) << TrueTy << TrueArg->getSourceRange();
+    return true;
+  }
+
+  // Third argument should be an integer and of the same type as TrueArg
+  Expr *FalseArg = Call->getArg(2);
+  QualType FalseTy = FalseArg->getType();
+  if ( ! FalseTy->isIntegerType()  ) {
+    S.Diag(FalseArg->getLocStart(), diag::err_typecheck_expect_int) << FalseTy << FalseArg->getSourceRange();
+    return true;
+  }
+
+  // At this point, both True and False are integers. Now check if they are of the same type/size.
+  // We don't want to infer anything or cast it ourselves. We want the user to tell us *exactly*
+  // what he wants
+  QualType T = TrueTy;
+  const BuiltinType *BTTrue = 0;
+  do {
+    const Type *Ty = T.getTypePtr();
+    switch (Ty->getTypeClass()) {
+      default: assert( 0 && "Unsupported type" );
+      case Type::Typedef:
+        T = cast<TypedefType>(Ty)->desugar();
+        break;
+      case Type::Builtin:
+	BTTrue = cast<BuiltinType>(Ty);
+	break;
+    }
+  } while ( !BTTrue && !T.isNull() );
+  assert (BTTrue && "BTrue null"); 
+
+  T = FalseTy;
+  const BuiltinType *BTFalse = 0;
+  do {
+    const Type *Ty = T.getTypePtr();
+    switch (Ty->getTypeClass()) {
+      default: assert( 0 && "Unsupported type" );
+      case Type::Typedef:
+        T = cast<TypedefType>(Ty)->desugar();
+	break;
+      case Type::Builtin:
+        BTFalse = cast<BuiltinType>(Ty);
+	break;
+    }
+  } while ( !BTFalse && !T.isNull() );
+  assert (BTFalse && "BTFalse null");
+
+  BuiltinType::Kind FalseKind = BTFalse->getKind();
+  BuiltinType::Kind TrueKind = BTTrue->getKind();
+
+  if ( FalseKind != TrueKind ) {
+    S.Diag(TrueArg->getLocStart(), diag::err_typecheck_convert_incompatible)
+        << FalseTy << TrueTy << 1 /* different class */
+	<< 0 /* qualifier difference */ << 1 /* parameter mismatch */
+	<< FalseTy << TrueTy << FalseArg->getSourceRange();
+    return true;
+  }
+
+  Call->setType(T);
+  return false;
+}
+
 static bool SemaBuiltinSEHScopeCheck(Sema &SemaRef, CallExpr *TheCall,
                                      Scope::ScopeFlags NeededScopeFlags,
                                      unsigned DiagID) {
@@ -563,7 +657,10 @@ Sema::CheckBuiltinFunctionCall(FunctionDecl *FDecl, unsigned BuiltinID,
 
     TheCall->setType(Context.VoidPtrTy);
     break;
-
+  case Builtin::BI__builtin_ct_choose:
+    if ( SemaBuiltinConstantTimeChoose( *this, Context, FDecl, TheCall ) )
+      return ExprError();
+    break;
   }
 
   // Since the target specific builtins for each arch overlap, only check those

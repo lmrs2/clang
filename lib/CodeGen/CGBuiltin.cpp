@@ -971,6 +971,25 @@ RValue CodeGenFunction::EmitBuiltinExpr(const FunctionDecl *FD,
     Builder.CreateMemSet(Dest, ByteVal, SizeVal, false);
     return RValue::get(Dest.getPointer());
   }
+  case Builtin::BI__builtin_ct_choose: {
+    Value *Cond = EmitScalarExpr(E->getArg(0));
+    Value *True = EmitScalarExpr(E->getArg(1));
+    Value *False = EmitScalarExpr(E->getArg(2));
+    llvm::IntegerType *TrueType = dyn_cast<llvm::IntegerType>(True->getType());
+    llvm::IntegerType *FalseType = dyn_cast<llvm::IntegerType>(False->getType());
+    llvm::IntegerType *CondType = dyn_cast<llvm::IntegerType>(Cond->getType());
+    // all inputs must be integers
+    assert (TrueType && FalseType && CondType && "Not integer type");
+    // True and False must have same type
+    assert ( TrueType == FalseType && "Not same types" );
+    // Cond is always a boolean
+    assert ( CondType == llvm::Type::getInt1Ty(Builder.getContext()) && "Invalid condition type" );
+    llvm::Type *Tys[] = { FalseType };
+    Value *Vals[] = { Cond, True, False };
+    Value *F = CGM.getIntrinsic(Intrinsic::ct_choose, Tys);
+    Value *Result = Builder.CreateCall(F, Vals);
+    return RValue::get(Result);
+  }
   case Builtin::BI__builtin_dwarf_cfa: {
     // The offset in bytes from the first argument to the CFA.
     //
