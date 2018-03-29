@@ -900,6 +900,12 @@ def NeonVectorType : TypeAttr {
   let Documentation = [Undocumented];
 }
 
+def TypeAnnotate : TypeAttr {
+  let Spellings = [GNU<"type_annotate">];
+  let Args = [StringArgument<"Annotation">];
+  let Documentation = [Undocumented];
+}
+
 def ReturnsTwice : InheritableAttr {
   let Spellings = [GCC<"returns_twice">];
   let Subjects = SubjectList<[Function]>;

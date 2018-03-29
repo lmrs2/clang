@@ -654,6 +654,11 @@ public:
   void DecorateInstructionWithInvariantGroup(llvm::Instruction *I,
                                              const CXXRecordDecl *RD);
 
+  /// Experimental type annotation metadata.
+  void TADecorate(llvm::Instruction *Inst, clang::QualType Ty,
+          uint8_t level=0);
+  void TADecorate(llvm::Value *V, clang::QualType Ty, uint8_t level=0);
+
   /// Emit the given number of characters as a value of type size_t.
   llvm::ConstantInt *getSize(CharUnits numChars);
 

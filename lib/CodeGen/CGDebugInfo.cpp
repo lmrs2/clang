@@ -2139,6 +2139,9 @@ static QualType UnwrapTypeForDebugInfo(QualType T, const ASTContext &C) {
     case Type::SubstTemplateTypeParm:
       T = cast<SubstTemplateTypeParmType>(T)->getReplacementType();
       break;
+    case Type::Annotated:
+      T = cast<AnnotatedType>(T)->getBaseType();
+      break;
     case Type::Auto:
       QualType DT = cast<AutoType>(T)->getDeducedType();
       assert(!DT.isNull() && "Undeduced types shouldn't reach here.");
@@ -2305,6 +2308,7 @@ llvm::DIType *CGDebugInfo::CreateTypeNode(QualType Ty, llvm::DIFile *Unit) {
   case Type::Decltype:
   case Type::UnaryTransform:
   case Type::PackExpansion:
+  case Type::Annotated:
     break;
   }
 

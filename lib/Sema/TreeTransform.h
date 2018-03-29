@@ -1046,6 +1046,10 @@ public:
   /// Subclasses may override this routine to provide different behavior.
   QualType RebuildAtomicType(QualType ValueType, SourceLocation KWLoc);
 
+  /// \brief Build a new annotated type given its underlying type and
+  /// annotation.
+  QualType RebuildAnnotatedType(QualType BaseType, StringRef Annotation);
+
   /// \brief Build a new pipe type given its value type.
   QualType RebuildPipeType(QualType ValueType, SourceLocation KWLoc);
 
@@ -5323,6 +5327,29 @@ QualType TreeTransform<Derived>::TransformAtomicType(TypeLocBuilder &TLB,
   NewTL.setKWLoc(TL.getKWLoc());
   NewTL.setLParenLoc(TL.getLParenLoc());
   NewTL.setRParenLoc(TL.getRParenLoc());
+
+  return Result;
+}
+
+template<typename Derived>
+QualType TreeTransform<Derived>::TransformAnnotatedType(TypeLocBuilder &TLB,
+                                                        AnnotatedTypeLoc TL) {
+  const AnnotatedType *oldType = TL.getTypePtr();
+  QualType BaseType = getDerived().TransformType(TLB, TL.getBaseLoc());
+  if (BaseType.isNull())
+    return QualType();
+
+  QualType Result = TL.getType();
+  if (getDerived().AlwaysRebuild() ||
+      BaseType != TL.getBaseLoc().getType()) {
+    Result = getDerived().RebuildAnnotatedType(BaseType,
+                                               oldType->getAnnotation());
+    if (Result.isNull())
+      return QualType();
+  }
+
+  AnnotatedTypeLoc NewTL = TLB.push<AnnotatedTypeLoc>(Result);
+  NewTL.setAnnotationLoc(TL.getAnnotationLoc());
 
   return Result;
 }
@@ -11370,6 +11397,12 @@ template<typename Derived>
 QualType TreeTransform<Derived>::RebuildAtomicType(QualType ValueType,
                                                    SourceLocation KWLoc) {
   return SemaRef.BuildAtomicType(ValueType, KWLoc);
+}
+
+template<typename Derived>
+QualType TreeTransform<Derived>::RebuildAnnotatedType(QualType BaseType,
+                                                      StringRef Annotation) {
+  return SemaRef.Context.getAnnotatedType(BaseType, Annotation);
 }
 
 template<typename Derived>

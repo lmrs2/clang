@@ -447,6 +447,13 @@ ASTTypeWriter::VisitAtomicType(const AtomicType *T) {
 }
 
 void
+ASTTypeWriter::VisitAnnotatedType(const AnnotatedType *T) {
+  Writer.AddTypeRef(T->getBaseType(), Record);
+  Writer.AddString(T->getAnnotation(), Record);
+  Code = TYPE_ANNOTATED;
+}
+
+void
 ASTTypeWriter::VisitPipeType(const PipeType *T) {
   Writer.AddTypeRef(T->getElementType(), Record);
   Code = TYPE_PIPE;
@@ -677,6 +684,9 @@ void TypeLocWriter::VisitAtomicTypeLoc(AtomicTypeLoc TL) {
   Writer.AddSourceLocation(TL.getKWLoc(), Record);
   Writer.AddSourceLocation(TL.getLParenLoc(), Record);
   Writer.AddSourceLocation(TL.getRParenLoc(), Record);
+}
+void TypeLocWriter::VisitAnnotatedTypeLoc(AnnotatedTypeLoc TL) {
+  Writer.AddSourceLocation(TL.getAnnotationLoc(), Record);
 }
 void TypeLocWriter::VisitPipeTypeLoc(PipeTypeLoc TL) {
   Writer.AddSourceLocation(TL.getKWLoc(), Record);
@@ -1036,6 +1046,7 @@ void ASTWriter::WriteBlockInfoBlock() {
   RECORD(TYPE_AUTO);
   RECORD(TYPE_UNARY_TRANSFORM);
   RECORD(TYPE_ATOMIC);
+  RECORD(TYPE_ANNOTATED);
   RECORD(TYPE_DECAYED);
   RECORD(TYPE_ADJUSTED);
   RECORD(LOCAL_REDECLARATIONS);
